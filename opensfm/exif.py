@@ -9,7 +9,7 @@ from six import string_types
 
 from opensfm.sensors import sensor_data
 from opensfm import types
-
+import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +102,11 @@ def get_xmp(fileobj):
     img_str = str(fileobj.read())
     xmp_start = img_str.find('<x:xmpmeta')
     xmp_end = img_str.find('</x:xmpmeta')
-
+    # pdb.set_trace()
     if xmp_start < xmp_end:
         xmp_str = img_str[xmp_start:xmp_end + 12]
+        dji = xmp_str.find('DJI Meta Data') 
+        xmp_str =  xmp_str[:dji+len('DJI Meta Data')+1] + '>' + xmp_str[dji+len('DJI Meta Data')+1:]
         xdict = x2d.parse(xmp_str)
         xdict = xdict.get('x:xmpmeta', {})
         xdict = xdict.get('rdf:RDF', {})

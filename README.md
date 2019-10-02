@@ -21,3 +21,6 @@ Checkout this [blog post with more demos](http://blog.mapillary.com/update/2014/
 [Building the library]: https://docs.opensfm.org/building.html (OpenSfM building instructions)
 [Running a reconstruction]: https://docs.opensfm.org/using.html (OpenSfM usage)
 [Documentation]: https://docs.opensfm.org  (OpenSfM documentation)
+
+02.10.2019
+I've changed the file OpenSFM/opensfm/exif.py and add a special treatment to DJI at lines 107-109 in function get_xmp()

@@ -46,6 +46,7 @@ def match_images(data, ref_images, cand_images):
     for im1, im2 in pairs:
         per_image[im1].append(im2)
 
+    # pdb.set_trace()
     ctx = Context()
     ctx.data = data
     ctx.cameras = ctx.data.load_camera_models()
@@ -168,7 +169,6 @@ def match(im1, im2, camera1, camera2, data):
         matches = apply_adhoc_filters(data, matches,
                                       im1, camera1, p1,
                                       im2, camera2, p2)
-    pdb.set_trace()
     matches = np.array(matches, dtype=int)
     time_2d_matching = timer() - time_start
     t = timer()
@@ -302,7 +302,6 @@ def match_brute_force(f1, f2, config):
             if m.distance < ratio * n.distance:
                 good_matches.append(m)
                 ratios.append(m.distance / n.distance)   
-    pdb.set_trace() 
     return _convert_matches_to_vector(good_matches), ratios
 
 
@@ -319,18 +318,24 @@ def _convert_matches_to_vector(matches):
 
 def match_brute_force_symmetric(fi, fj, config):
     """Match with brute force in both directions and keep consistent matches.
+       Return matching ratios as well
 
     Args:
         fi: feature descriptors of the first image
         fj: feature descriptors of the second image
         config: config parameters
     """
+    # pdb.set_trace()
     matches_ij = [(a, b) for a, b in match_brute_force(fi, fj, config)[0]]
     matches_ji = [(b, a) for a, b in match_brute_force(fj, fi, config)[0]]
 
-    ratios_ij = [(r) for r in match_brute_force(fi, fj, config)[1]]    
+    ratios_ij = np.array([(r) for r in match_brute_force(fi, fj, config)[1]])    
 
-    return list(set(matches_ij).intersection(set(matches_ji))), ratios_ij
+    inter = set(matches_ij).intersection(set(matches_ji))
+
+    inx_ij = np.array([matches_ij.index(x) for x in inter])
+
+    return list(inter), ratios_ij[inx_ij]
 
 
 

@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import pyopengv
 import logging
+import pdb
 
 from timeit import default_timer as timer
 from collections import defaultdict
@@ -156,9 +157,9 @@ def match(im1, im2, camera1, camera2, data):
             matches = match_flann(i1, f2, config)
     elif matcher_type == 'BRUTEFORCE':
         if symmetric_matching:
-            matches = match_brute_force_symmetric(f1, f2, config)
+            matches, ratios = match_brute_force_symmetric(f1, f2, config)
         else:
-            matches = match_brute_force(f1, f2, config)
+            matches, ratios = match_brute_force(f1, f2, config)
     else:
         raise ValueError("Invalid matcher_type: {}".format(matcher_type))
 
@@ -167,7 +168,7 @@ def match(im1, im2, camera1, camera2, data):
         matches = apply_adhoc_filters(data, matches,
                                       im1, camera1, p1,
                                       im2, camera2, p2)
-
+    pdb.set_trace()
     matches = np.array(matches, dtype=int)
     time_2d_matching = timer() - time_start
     t = timer()
@@ -294,12 +295,15 @@ def match_brute_force(f1, f2, config):
 
     ratio = config['lowes_ratio']
     good_matches = []
+    ratios = []
     for match in matches:
         if match and len(match) == 2:
             m, n = match
             if m.distance < ratio * n.distance:
                 good_matches.append(m)
-    return _convert_matches_to_vector(good_matches)
+                ratios.append(m.distance / n.distance)   
+    pdb.set_trace() 
+    return _convert_matches_to_vector(good_matches), ratios
 
 
 def _convert_matches_to_vector(matches):
@@ -307,8 +311,8 @@ def _convert_matches_to_vector(matches):
     matches_vector = np.zeros((len(matches), 2), dtype=np.int)
     k = 0
     for mm in matches:
-        matches_vector[k, 0] = mm.queryIdx
-        matches_vector[k, 1] = mm.trainIdx
+        matches_vector[k, 0] = mm.queryIdx # pt first image
+        matches_vector[k, 1] = mm.trainIdx # pt second image
         k = k + 1
     return matches_vector
 
@@ -321,10 +325,13 @@ def match_brute_force_symmetric(fi, fj, config):
         fj: feature descriptors of the second image
         config: config parameters
     """
-    matches_ij = [(a, b) for a, b in match_brute_force(fi, fj, config)]
-    matches_ji = [(b, a) for a, b in match_brute_force(fj, fi, config)]
+    matches_ij = [(a, b) for a, b in match_brute_force(fi, fj, config)[0]]
+    matches_ji = [(b, a) for a, b in match_brute_force(fj, fi, config)[0]]
 
-    return list(set(matches_ij).intersection(set(matches_ji)))
+    ratios_ij = [(r) for r in match_brute_force(fi, fj, config)[1]]    
+
+    return list(set(matches_ij).intersection(set(matches_ji))), ratios_ij
+
 
 
 def robust_match_fundamental(p1, p2, matches, config):

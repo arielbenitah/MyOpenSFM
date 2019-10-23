@@ -46,7 +46,7 @@ class NGRansac:
         model_file = model
         if len(model_file) == 0:
             model_file = util.create_session_string('e2e', fmat, orb, rootsift, ratio, session)
-            model_file = '../../ngransac/models/weights_' + model_file + '.net'            
+            model_file = '/home/ubuntu/projects/ngransac/models/weights_' + model_file + '.net'            
             print('Loading pre-trained model:', model_file)
             
         model = CNNet(resblocks)

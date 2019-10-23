@@ -13,6 +13,7 @@ from opensfm import log
 from opensfm import multiview
 from opensfm import pairs_selection
 from opensfm import feature_loader
+from opensfm import ngransac
 
 
 logger = logging.getLogger(__name__)
@@ -45,13 +46,22 @@ def match_images(data, ref_images, cand_images):
     per_image = {im: [] for im in ref_images}
     for im1, im2 in pairs:
         per_image[im1].append(im2)
+    
+    #if data.config['ng_ransac']:
 
-    # pdb.set_trace()
+
     ctx = Context()
     ctx.data = data
     ctx.cameras = ctx.data.load_camera_models()
     ctx.exifs = exifs
+    #pdb.set_trace()
+    if data.config['ng_ransac']:
+       K = ctx.cameras[exifs[all_images[0]]['camera']].get_K_in_pixel_coordinates()
+       frame_size = ctx.data.image_size(all_images[0])
+       ctx.NGRansac = ngransac.NGRansac(frame_size=frame_size, K=K)
+
     args = list(match_arguments(per_image, ctx))
+     
 
     # Perform all pair matchings in parallel
     start = timer()

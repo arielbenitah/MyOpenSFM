@@ -201,7 +201,10 @@ def match(im1, im2, camera1, camera2, ctx):
         return []
 
     # robust matching
-    rmatches = robust_match(p1, p2, camera1, camera2, matches, config)
+    if ng_ransac:
+        rmatches = robust_match_ngransac(p1, p2, camera1, camera2, matches, ratios, ctx)
+    else: 
+        rmatches = robust_match(p1, p2, camera1, camera2, matches, config)
     rmatches = np.array([[a, b] for a, b in rmatches])
     time_robust_matching = timer() - t
     time_total = timer() - time_start

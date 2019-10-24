@@ -14,6 +14,7 @@ from opensfm import multiview
 from opensfm import pairs_selection
 from opensfm import feature_loader
 from opensfm import ngransac
+from opensfm import features
 
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def match_unwrap_args(args):
         p2, f2, _ = feature_loader.instance.load_points_features_colors(ctx.data, im2)
         camera2 = ctx.cameras[ctx.exifs[im2]['camera']]
 
-        im1_matches[im2] = match(im1, im2, camera1, camera2, ctx.data)
+        im1_matches[im2] = match(im1, im2, camera1, camera2, ctx)
 
     num_matches = sum(1 for m in im1_matches.values() if len(m) > 0)
     logger.debug('Image {} matches: {} out of {}'.format(
@@ -133,8 +134,11 @@ def match_unwrap_args(args):
     return im1, im1_matches
 
 
-def match(im1, im2, camera1, camera2, data):
+def match(im1, im2, camera1, camera2, ctx):
     """Perform matching for a pair of images."""
+
+    data = ctx.data
+ 
     # Apply mask to features if any
     time_start = timer()
     p1, f1, _ = feature_loader.instance.load_points_features_colors(
@@ -148,6 +152,7 @@ def match(im1, im2, camera1, camera2, data):
     config = data.config
     matcher_type = config['matcher_type'].upper()
     symmetric_matching = config['symmetric_matching']
+    ng_ransac = config['ng_ransac']
 
     if matcher_type == 'WORDS':
         w1 = feature_loader.instance.load_words(data, im1, masked=True)
@@ -407,6 +412,23 @@ def robust_match_calibrated(p1, p2, camera1, camera2, matches, config):
             b1[inliers], b2[inliers], T[:3, 3], T[:3, :3])
 
     inliers = _compute_inliers_bearings(b1, b2, T, threshold)
+
+    return matches[inliers]
+
+
+def robust_match_ngransac(p1, p2, camera1, camera2, matches, ratios, ctx):
+    """use neural guidance ransac for matching as described here:
+       https://github.com/vislearn/ngransac
+    """
+    # denormalize points: required by the ng algorithm
+    if max(np.abs(p1)) < 0.5:
+        pts1 = features.denormalized_image_coordinates(p1, camera1.width, camera1.height)  
+ 
+    if max(np.abs(p2)) < 0.5: 
+        pts2 = features.denormalized_image_coordinates(p2, camera1.width, camera1.height)
+
+    # find essential matrix + corresponding inliers
+    E, inliers = ctx.NGRansac.findEssentialMat(pts1, pts2, ratios)
 
     return matches[inliers]
 

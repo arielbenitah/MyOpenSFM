@@ -16,6 +16,8 @@ from opensfm import feature_loader
 from opensfm import ngransac
 from opensfm import features
 
+debug = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ def match_images(data, ref_images, cand_images):
         per_image[im1].append(im2)
     
     #if data.config['ng_ransac']:
-
+    # pdb.set_trace()
 
     ctx = Context()
     ctx.data = data
@@ -70,7 +72,11 @@ def match_images(data, ref_images, cand_images):
     jobs_per_process = 2
     processes = context.processes_that_fit_in_memory(data.config['processes'], mem_per_process)
     logger.info("Computing pair matching with %d processes" % processes)
-    matches = context.parallel_map(match_unwrap_args, args, processes, jobs_per_process)
+    # pdb.set_trace()    
+    if debug:
+        matches = match_not_parallel(per_image, ctx)
+    else:    
+        matches = context.parallel_map(match_unwrap_args, args, processes, jobs_per_process)
     logger.info(
         'Matched {} pairs for {} ref_images and {} cand_images in '
         '{} seconds.'.format(
@@ -133,10 +139,36 @@ def match_unwrap_args(args):
 
     return im1, im1_matches
 
+def match_not_parallel(pairs_images, ctx):
+   
+    # log.setup()
+
+    # pdb.set_trace()    
+    matches = []
+    im1_matches = {}
+    for im1 in pairs_images:
+        candidates = pairs_images[im1]
+        p1, f1, _ = feature_loader.instance.load_points_features_colors(ctx.data, im1)
+        camera1 = ctx.cameras[ctx.exifs[im1]['camera']]
+
+        for im2 in candidates:
+            p2, f2, _ = feature_loader.instance.load_points_features_colors(ctx.data, im2)
+            camera2 = ctx.cameras[ctx.exifs[im2]['camera']]
+
+            im1_matches[im2] = match(im1, im2, camera1, camera2, ctx)
+            
+        matches.append((im1, im1_matches))
+
+    # num_matches = sum(1 for m in im1_matches.values() if len(m) > 0)
+    # logger.debug('Image {} matches: {} out of {}'.format(
+    #     im1, num_matches, len(candidates)))
+
+    return matches
+
 
 def match(im1, im2, camera1, camera2, ctx):
     """Perform matching for a pair of images."""
-
+    # pdb.set_trace() 
     data = ctx.data
  
     # Apply mask to features if any
@@ -172,19 +204,21 @@ def match(im1, im2, camera1, camera2, ctx):
         else:
             matches = match_flann(i1, f2, config)
     elif matcher_type == 'BRUTEFORCE':
-        if symmetric_matching:
+        if symmetric_matching:            
             matches, ratios = match_brute_force_symmetric(f1, f2, config)
         else:
             matches, ratios = match_brute_force(f1, f2, config)
     else:
         raise ValueError("Invalid matcher_type: {}".format(matcher_type))
 
+    
     # Adhoc filters
     if config['matching_use_filters']:
         matches = apply_adhoc_filters(data, matches,
                                       im1, camera1, p1,
                                       im2, camera2, p2)
     matches = np.array(matches, dtype=int)
+    # pdb.set_trace()    
     time_2d_matching = timer() - time_start
     t = timer()
 
@@ -200,11 +234,12 @@ def match(im1, im2, camera1, camera2, ctx):
                 time_2d_matching))
         return []
 
-    # robust matching
+    # robust matching    
     if ng_ransac:
         rmatches = robust_match_ngransac(p1, p2, camera1, camera2, matches, ratios, ctx)
     else: 
         rmatches = robust_match(p1, p2, camera1, camera2, matches, config)
+    
     rmatches = np.array([[a, b] for a, b in rmatches])
     time_robust_matching = timer() - t
     time_total = timer() - time_start
@@ -320,7 +355,8 @@ def match_brute_force(f1, f2, config):
             if m.distance < ratio * n.distance:
                 good_matches.append(m)
                 ratios.append(m.distance / n.distance)   
-    return _convert_matches_to_vector(good_matches), ratios
+    
+    return _convert_matches_to_vector(good_matches), np.array(ratios)
 
 
 def _convert_matches_to_vector(matches):
@@ -343,17 +379,48 @@ def match_brute_force_symmetric(fi, fj, config):
         fj: feature descriptors of the second image
         config: config parameters
     """
-    # pdb.set_trace()
-    matches_ij = [(a, b) for a, b in match_brute_force(fi, fj, config)[0]]
-    matches_ji = [(b, a) for a, b in match_brute_force(fj, fi, config)[0]]
+    
+    
+#     matches_ratios_ij = [(a, b, c) for a, b, c in match_brute_force(fi, fj, config)]
+#     matches_ij, ratios_ij = [(a, b) for a, b, c in matches_ratios_ij], [(c) for a, b, c in matches_ratios_ij]
+    matches_ij, ratios_ij = match_brute_force(fi, fj, config)
+    matches_ij =  [(a, b) for a, b in matches_ij]
+#     matches_ji = [(b, a) for a, b, c in match_brute_force(fj, fi, config)]
+#     matches_ji, ratios_ji = [(b, a) for a, b, c in matches_ratios_ji], [(c) for a, b, c in matches_ratios_ji]
+    matches_ji, ratios_ji = match_brute_force(fj, fi, config)
+    matches_ji =  [(b, a) for a, b in matches_ji]
+    
+    dict_ij = dict(zip(matches_ij, ratios_ij))
+    
+#     matches = []
+#     ratios = []
+#     pdb.set_trace()
+#     for m_ji in matches_ji:
+        
+#         inx_1 = np.argmin(np.sum(np.abs(np.array(matches_ij) - np.array(m_ji)), axis=1))
+#         inx_2 = np.argmin(np.sum(np.abs(np.array(matches_ij) - np.flip(np.array(m_ji))), axis=1))
+        
+#         if np.sum(np.abs(np.array(matches_ij[inx_1]) - np.array(m_ji))) == 0:
+#             matches.append(matches_ij[inx_1])
+#             ratios.append(ratios_ij[inx_1])
+#         elif np.sum(np.abs(np.array(matches_ij[inx_2]) - np.flip(np.array(m_ji)))) == 0:
+#             matches.append(matches_ij[inx_2])
+#             ratios.append(ratios_ij[inx_2])
 
-    ratios_ij = np.array([(r) for r in match_brute_force(fi, fj, config)[1]])    
+#     ratios_ij = np.array([(r) for r in match_brute_force(fi, fj, config)[1]])    
 
+    ratios = []
     inter = set(matches_ij).intersection(set(matches_ji))
+    
+    for val in inter:
+        ratios.append(dict_ij[val])
 
-    inx_ij = np.array([matches_ij.index(x) for x in inter])
-
-    return list(inter), ratios_ij[inx_ij]
+#     inx_ij = np.array([matches_ij.index(x) for x in inter])
+    
+#     return matches, np.array(ratios_ij)
+    # pdb.set_trace()
+    return np.array(list(inter)), np.array(ratios)
+#     return list(inter), np.array(ratios_ij)
 
 
 
@@ -423,17 +490,29 @@ def robust_match_ngransac(p1, p2, camera1, camera2, matches, ratios, ctx):
     """use neural guidance ransac for matching as described here:
        https://github.com/vislearn/ngransac
     """
+    
     # denormalize points: required by the ng algorithm
-    if max(np.abs(p1)) < 0.5:
+    if np.max(np.abs(p1[...,:2])) < 0.5:
         pts1 = features.denormalized_image_coordinates(p1, camera1.width, camera1.height)  
  
-    if max(np.abs(p2)) < 0.5: 
+    if np.max(np.abs(p2[..., 2])) < 0.5: 
         pts2 = features.denormalized_image_coordinates(p2, camera1.width, camera1.height)
+        
+    pts1 = pts1[matches[:, 0]][:, :2].copy()
+    pts2 = pts2[matches[:, 1]][:, :2].copy()
+    # pdb.set_trace()
+    ratios = ratios.copy()
+        
+    # add batch for forwarding into net
+    pts1, pts2, ratios = pts1[None, ...], pts2[None, ...], ratios[None, ..., None]        
 
     # find essential matrix + corresponding inliers
     E, inliers = ctx.NGRansac.findEssentialMat(pts1, pts2, ratios)
+    
+    # extract indexes of inliers
+    inx = np.where(np.array(inliers) >0)[0]
 
-    return matches[inliers]
+    return matches[inx]
 
 
 def robust_match(p1, p2, camera1, camera2, matches, config):

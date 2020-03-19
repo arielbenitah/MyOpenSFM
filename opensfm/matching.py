@@ -61,7 +61,7 @@ def match_images(data, ref_images, cand_images):
     if data.config['ng_ransac']:
        K = ctx.cameras[exifs[all_images[0]]['camera']].get_K_in_pixel_coordinates()
        frame_size = ctx.data.image_size(all_images[0])
-       ctx.NGRansac = ngransac.NGRansac(frame_size=frame_size, K=K)
+       ctx.NGRansac = ngransac.NGRansac(frame_size=frame_size, K=K, rootsift=bool(data.config['feature_root']))
 
     args = list(match_arguments(per_image, ctx))
      
@@ -260,6 +260,7 @@ def match(im1, im2, camera1, camera2, ctx):
             len(rmatches) >= robust_matching_min_match))
 
     if len(rmatches) < robust_matching_min_match:
+        logger.debug('DROPING: {} and {}'.format(im1, im2))
         return []
 
     return np.array(rmatches, dtype=int)
